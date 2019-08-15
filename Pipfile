@@ -1,0 +1,14 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+numpy = "*"
+torch = {file = "https://download.pytorch.org/whl/cu100/torch-1.2.0-cp37-cp37m-win_amd64.whl"}
+torchvision = {file = "https://download.pytorch.org/whl/cu100/torchvision-0.4.0-cp37-cp37m-win_amd64.whl"}
+
+[requires]
+python_version = "3.7"
