@@ -4,15 +4,18 @@ import random
 import torch.nn as nn
 import torch.optim as optim
 import time
-import spacy
+# import spacy
 import json
+from tqdm import tqdm
+import dill
 
 t = time.time()
 SEED = 1234
 torch.manual_seed(SEED)
-torch.backends.cudnn.deterministic = True
-nlp = spacy.load('en_core_web_sm')
+# torch.backends.cudnn.deterministic = True
+# nlp = spacy.load('en_core_web_sm')
 first_time = 1
+file_type = ''
 
 
 def tokenize(s):
@@ -26,7 +29,7 @@ class RNN(nn.Module):
 
         self.embedding = nn.Embedding(input_dim, embedding_dim)
 
-        self.rnn = nn.RNN(embedding_dim, hidden_dim)
+        self.rnn = nn.GRU(embedding_dim, hidden_dim)
 
         self.fc = nn.Linear(hidden_dim, output_dim)
 
@@ -49,38 +52,51 @@ class RNN(nn.Module):
 # ref: https://github.com/bentrevett/pytorch-sentiment-analysis/blob/master/1%20-%20Simple%20Sentiment%20Analysis.ipynb
 if first_time:
     # TEXT = data.Field(tokenize='spacy')
-    TEXT = data.Field(tokenize=nlp)
-    # TEXT = data.Field(tokenize=tokenize)
+    # TEXT = data.Field(tokenize=nlp)
+    TEXT = data.Field(tokenize=tokenize)
     LABEL = data.LabelField(dtype=torch.float)
     train_data, test_data = datasets.IMDB.splits(TEXT, LABEL)
 
     print(time.time() - t)
 
-    train_examples = [vars(t) for t in train_data]
-    test_examples = [vars(t) for t in test_data]
+    if file_type == 'json':
+        train_examples = [vars(t) for t in train_data]
+        test_examples = [vars(t) for t in test_data]
 
-    with open('.data/train.json', 'w+') as f:
-        for example in train_examples:
-            json.dump(example, f)
-            f.write('\n')
+        with open('.data/train.json', 'w+') as f:
+            for example in train_examples:
+                json.dump(example, f)
+                f.write('\n')
 
-    with open('.data/test.json', 'w+') as f:
-        for example in test_examples:
-            json.dump(example, f)
-            f.write('\n')
+        with open('.data/test.json', 'w+') as f:
+            for example in test_examples:
+                json.dump(example, f)
+                f.write('\n')
+    # else:
+    #     torch.save(train_data, ".data/train.Field", pickle_module=dill)
+        # with open(".data/train.Field", "wb+")as f:
+        #     dill.dump(train_data, f)
+        # with open(".data/test.Field", "wb+")as f:
+        #     dill.dump(test_data, f)
 else:
     TEXT = data.Field()
     LABEL = data.LabelField()
 
     fields = {'text': ('text', TEXT), 'label': ('label', LABEL)}
 
-    train_data, test_data = data.TabularDataset.splits(
-        path='.data',
-        train='train.json',
-        test='test.json',
-        format='json',
-        fields=fields
-    )
+    if file_type =='json':
+        train_data, test_data = data.TabularDataset.splits(
+            path='.data',
+            train='train.json',
+            test='test.json',
+            format='json',
+            fields=fields
+        )
+    else:
+        with open(".data/train.Field", "rb")as f:
+            train_data = dill.load(f)
+        with open(".data/test.Field", "rb")as f:
+            test_data = dill.load(f)
 
 print(f'Number of training examples: {len(train_data)}')
 print(f'Number of testing examples: {len(test_data)}')
@@ -150,7 +166,7 @@ def train(model, iterator, optimizer, criterion):
 
     model.train()
 
-    for batch in iterator:
+    for batch in tqdm(iterator):
         optimizer.zero_grad()
 
         predictions = model(batch.text).squeeze(1)
