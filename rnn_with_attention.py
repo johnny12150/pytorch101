@@ -28,26 +28,47 @@ class RNN(nn.Module):
         super().__init__()
 
         self.embedding = nn.Embedding(input_dim, embedding_dim)
-
         self.rnn = nn.GRU(embedding_dim, hidden_dim)
-
         self.fc = nn.Linear(hidden_dim, output_dim)
+        self.use_att = True
+        self.att = Attention(hidden_dim)
 
     def forward(self, text):
         # text = [sent len, batch size]
-
         embedded = self.embedding(text)
 
         # embedded = [sent len, batch size, emb dim]
-
         output, hidden = self.rnn(embedded)
 
         # output = [sent len, batch size, hid dim]
         # hidden = [1, batch size, hid dim]
 
-        assert torch.equal(output[-1, :, :], hidden.squeeze(0))
+        if self.use_att:
+            h_t = hidden.view(text.shape[1], -1)
+            hidden = self.att(output, h_t)
+            pred = self.fc(hidden.squeeze(0)).view(-1, 1)
+        else:
+            assert torch.equal(output[-1, :, :], hidden.squeeze(0))
+            pred = self.fc(hidden.squeeze(0))
 
-        return self.fc(hidden.squeeze(0))
+        return pred
+
+
+class Attention(nn.Module):
+    def __init__(self, input_dim, hidden_dim=100):
+        super().__init__()
+        self.w1 = nn.Linear(input_dim, hidden_dim, bias=False)
+        self.w2 = nn.Linear(input_dim, hidden_dim)
+        self.V = nn.Linear(hidden_dim, 1)
+
+    def forward(self, input, z):
+        w1h = self.w1(input).transpose(0, 1)
+        w2h = self.w2(z).unsqueeze(1)
+        u_score = torch.tanh(w1h + w2h)
+        u_score = self.V(u_score)
+        att = torch.softmax(u_score, dim=1).transpose(1, 2)
+
+        return torch.bmm(att, input.transpose(0, 1)).unsqueeze(1)
 
 # ref: https://github.com/bentrevett/pytorch-sentiment-analysis/blob/master/1%20-%20Simple%20Sentiment%20Analysis.ipynb
 if first_time:
